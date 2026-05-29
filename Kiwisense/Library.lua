@@ -236,7 +236,13 @@ local Options, MiscOptions do
         ["Distance_Text_Size"] = 11;
     };  
 
-    Options = setmetatable({}, {__index = MiscOptions, __newindex = function(self, key, value) Esp.RefreshElements(key, value) end});
+    Options = setmetatable({}, {
+        __index = MiscOptions,
+        __newindex = function(self, key, value)
+            rawset(self, key, value)
+            Esp.RefreshElements(key, value)
+        end
+    });
 
     local Fonts = {}; do
         local function RegisterFont(Name, Weight, Style, Asset)
@@ -1423,6 +1429,9 @@ local Options, MiscOptions do
     for index,value in MiscOptions do 
         Options[index] = value -- gotta trigger that new index
     end
+
+    getgenv().Options = Options
+    getgenv().MiscOptions = MiscOptions
 end
 
 -- beware of somewhat horrible code
@@ -1492,7 +1501,7 @@ local Library do
         return CoreGui
     end
 
-    getgenv().Options = { }
+    getgenv().Options = getgenv().Options or { }
 
     -- Library
     Library = {
@@ -10113,4 +10122,4 @@ local Library do
 end 
 
 getgenv().Library = Library
-return Library
+return Library 

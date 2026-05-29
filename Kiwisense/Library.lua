@@ -1495,7 +1495,7 @@ local Library do
 
     local RectNew = Rect.new
 
-    local IsMobile = UserInputService.TouchEnabled or false
+    local IsMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 
     gethui = gethui or function()
         return CoreGui
@@ -1982,7 +1982,8 @@ local Library do
             local InputChanged
 
             local Set = function(Input)
-                local DragDelta = Input.Position - DragStart
+                local Scale = Library:GetUIScale()
+                local DragDelta = (Input.Position - DragStart) / Scale
                 self:Tween(TweenInfo.new(0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2New(StartPosition.X.Scale, StartPosition.X.Offset + DragDelta.X, StartPosition.Y.Scale, StartPosition.Y.Offset + DragDelta.Y)})
             end
 
@@ -2053,7 +2054,8 @@ local Library do
 
                     Resizing = true
 
-                    Start = Gui.Size - UDim2New(0, Input.Position.X, 0, Input.Position.Y)
+                    local Scale = Library:GetUIScale()
+                    Start = Gui.Size - UDim2New(0, Input.Position.X / Scale, 0, Input.Position.Y / Scale)
 
                     if InputChanged then
                         return
@@ -2073,9 +2075,10 @@ local Library do
             Library:Connect(UserInputService.InputChanged, function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
                     if Resizing then
-                        ResizeMax = Maximum or Gui.Parent.AbsoluteSize - Gui.AbsoluteSize
+                        local Scale = Library:GetUIScale()
+                        ResizeMax = Maximum or (Gui.Parent.AbsoluteSize - Gui.AbsoluteSize) / Scale
 
-                        Delta = Start + UDim2New(0, Input.Position.X, 0, Input.Position.Y)
+                        Delta = Start + UDim2New(0, Input.Position.X / Scale, 0, Input.Position.Y / Scale)
                         Delta = UDim2New(0, math.clamp(Delta.X.Offset, Minimum.X, ResizeMax.X), 0, math.clamp(Delta.Y.Offset, Minimum.Y, ResizeMax.Y))
 
                         Tween:Create(Gui, TweenInfo.new(0.17, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = Delta}, true)
@@ -2212,6 +2215,23 @@ local Library do
         DisplayOrder = 2,
         ResetOnSpawn = false
     })
+
+    local UIScale = Instances:Create("UIScale", {
+        Parent = Library.Holder.Instance
+    })
+
+    local function UpdateScale()
+        local ViewportSize = Camera.ViewportSize
+        local TargetScale = 1
+        if IsMobile then
+            TargetScale = math.min(0.55, math.min(ViewportSize.X / 1450, ViewportSize.Y / 850))
+            TargetScale = math.max(0.15, TargetScale)
+        end
+        UIScale.Instance.Scale = TargetScale
+    end
+
+    UpdateScale()
+    Library:Connect(Camera:GetPropertyChangedSignal("ViewportSize"), UpdateScale)
 
     Library.UnusedHolder = Instances:Create("ScreenGui", {
         Parent = gethui(),
@@ -2483,6 +2503,11 @@ local Library do
                 end
             end
         end
+    end
+
+    Library.GetUIScale = function(self)
+        local UIScaleInstance = Library.Holder.Instance:FindFirstChildOfClass("UIScale")
+        return UIScaleInstance and UIScaleInstance.Scale or 1
     end
 
     Library.IsMouseOverFrame = function(self, Frame, XOffset, YOffset)
@@ -3360,7 +3385,7 @@ local Library do
             getgenv().Options[Dropdown.Flag] = Dropdown
 
             Library:Connect(UserInputService.InputBegan, function(Input)
-                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                     if Library:IsMouseOverFrame(Items["OptionHolder"]) then
                         return
                     end
@@ -4500,7 +4525,7 @@ local Library do
             end)
 
             Library:Connect(UserInputService.InputBegan, function(Input)
-                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                     if not Colorpicker.IsOpen then
                         return
                     end
@@ -5408,7 +5433,7 @@ local Library do
                     end
                 end
 
-                if Input.UserInputType == Enum.UserInputType.MouseButton1 then 
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then 
                     if Library:IsMouseOverFrame(Items["KeybindWindow"]) or Library:IsMouseOverFrame(ModesDropdownItems["OptionHolder"]) then 
                         return
                     end
@@ -7670,7 +7695,7 @@ local Library do
                     end)
                 end
 
-                UserInputService.MouseIconEnabled = false
+                UserInputService.MouseIconEnabled = IsMobile and true or false
 
                 Items["MouseImage"] = Instances:Create("ImageLabel", {
                     Parent = Library.Holder.Instance,
@@ -7683,13 +7708,16 @@ local Library do
                     Size = UDim2New(0, 20, 0, 20),
                     ZIndex = 99999,
                     BorderSizePixel = 0,
-                    BackgroundColor3 = FromRGB(255, 255, 255)
+                    BackgroundColor3 = FromRGB(255, 255, 255),
+                    Visible = not IsMobile
                 })  Items["MouseImage"]:AddToTheme({ImageColor3 = "Accent"})
 
-                Library:Connect(RunService.RenderStepped, function()
-                    local MouseLocation = UserInputService:GetMouseLocation() 
-                    Items["MouseImage"].Instance.Position = UDim2New(0, MouseLocation.X - 1, 0, MouseLocation.Y - 56)
-                end)
+                if not IsMobile then
+                    Library:Connect(RunService.RenderStepped, function()
+                        local MouseLocation = UserInputService:GetMouseLocation() 
+                        Items["MouseImage"].Instance.Position = UDim2New(0, MouseLocation.X - 1, 0, MouseLocation.Y - 56)
+                    end)
+                end
             end
 
             local Debounce = false 
@@ -7713,6 +7741,18 @@ local Library do
                 end
 
                 Window.IsOpen = Bool
+
+                if IsMobile or Window.FadeSpeed == 0 then
+                    Items["MainFrame"].Instance.Visible = Bool
+                    if Window.IsOpen then
+                        Items["MouseImage"].Instance.Visible = not IsMobile
+                        UserInputService.MouseIconEnabled = IsMobile and true or false 
+                    else
+                        Items["MouseImage"].Instance.Visible = false
+                        UserInputService.MouseIconEnabled = true 
+                    end
+                    return
+                end
 
                 Debounce = true
 
@@ -7746,8 +7786,8 @@ local Library do
                     Items["MainFrame"].Instance.Visible = Bool
 
                     if Window.IsOpen then
-                        Items["MouseImage"].Instance.Visible = true
-                        UserInputService.MouseIconEnabled = false 
+                        Items["MouseImage"].Instance.Visible = not IsMobile
+                        UserInputService.MouseIconEnabled = IsMobile and true or false 
                     else
                         Items["MouseImage"].Instance.Visible = false
                         UserInputService.MouseIconEnabled = true 

@@ -131,6 +131,99 @@ local function getTextBounds(textDrawing)
 	return success and bounds or Vector2.new(0, 0)
 end
 
+-- SafeText wrapper class to prevent client crashes when modifying Text drawing .Outline / .OutlineColor properties.
+local SafeText = {}
+SafeText.__index = function(tbl, key)
+	if SafeText[key] then
+		return SafeText[key]
+	end
+	if key == "TextBounds" then
+		return getTextBounds(tbl.main)
+	elseif key == "Visible" then
+		return tbl.main.Visible
+	elseif key == "Text" then
+		return tbl.main.Text
+	elseif key == "Position" then
+		return tbl.main.Position
+	elseif key == "Color" then
+		return tbl.main.Color
+	elseif key == "Transparency" then
+		return tbl.main.Transparency
+	elseif key == "Size" then
+		return tbl.main.Size
+	elseif key == "Font" then
+		return tbl.main.Font
+	elseif key == "Center" then
+		return tbl.main.Center
+	elseif key == "Outline" then
+		return rawget(tbl, "_outline")
+	elseif key == "OutlineColor" then
+		return tbl.shadow.Color
+	end
+	return tbl.main[key]
+end
+
+SafeText.__newindex = function(tbl, key, val)
+	if key == "Visible" then
+		tbl.main.Visible = val
+		tbl.shadow.Visible = val and rawget(tbl, "_outline") or false
+	elseif key == "Text" then
+		tbl.main.Text = val
+		tbl.shadow.Text = val
+	elseif key == "Size" then
+		tbl.main.Size = val
+		tbl.shadow.Size = val
+	elseif key == "Font" then
+		tbl.main.Font = val
+		tbl.shadow.Font = val
+	elseif key == "Color" then
+		tbl.main.Color = val
+	elseif key == "Transparency" then
+		tbl.main.Transparency = val
+		tbl.shadow.Transparency = val
+	elseif key == "Center" then
+		tbl.main.Center = val
+		tbl.shadow.Center = val
+	elseif key == "Position" then
+		tbl.main.Position = val
+		tbl.shadow.Position = val + Vector2.new(1, 1)
+	elseif key == "Outline" then
+		rawset(tbl, "_outline", val)
+		tbl.shadow.Visible = tbl.main.Visible and val or false
+	elseif key == "OutlineColor" then
+		tbl.shadow.Color = val
+	else
+		rawset(tbl, key, val)
+	end
+end
+
+function SafeText.new(properties)
+	local self = setmetatable({
+		main = Drawing.new("Text"),
+		shadow = Drawing.new("Text"),
+		_outline = false
+	}, SafeText)
+	
+	self.main.Visible = false
+	self.shadow.Visible = false
+	self.shadow.Color = Color3.new(0, 0, 0)
+	
+	for prop, val in next, properties or {} do
+		self[prop] = val
+	end
+	
+	return self
+end
+
+function SafeText:Remove()
+	self.main:Remove()
+	self.shadow:Remove()
+end
+
+function SafeText:Destroy()
+	self:Remove()
+end
+
 -- esp object
 local EspObject = {};
 EspObject.__index = EspObject;
@@ -197,12 +290,17 @@ function EspObject:Construct()
 end
 
 function EspObject:create(class, properties)
-	local drawing = Drawing.new(class);
-	for property, value in next, properties do
-		drawing[property] = value;
+	local drawing
+	if class == "Text" then
+		drawing = SafeText.new(properties)
+	else
+		drawing = Drawing.new(class)
+		for property, value in next, properties do
+			drawing[property] = value
+		end
 	end
-	self.bin[#self.bin + 1] = drawing;
-	return drawing;
+	self.bin[#self.bin + 1] = drawing
+	return drawing
 end
 
 function EspObject:Destruct()
@@ -508,8 +606,7 @@ function InstanceObject:Construct()
 	options.limitDistance = options.limitDistance or false;
 	options.maxDistance = options.maxDistance or 150;
 
-	self.text = Drawing.new("Text");
-	self.text.Center = true;
+	self.text = SafeText.new({ Center = true });
 
 	self.renderConnection = runService.Heartbeat:Connect(function(deltaTime)
 		self:Render(deltaTime);

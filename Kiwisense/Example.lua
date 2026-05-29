@@ -1,4 +1,5 @@
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/sametexe001/sametlibs/refs/heads/main/Kiwisense/Library.lua"))()
+local LoadingTick = os.clock()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/cloudsense-pub/sametlibs/refs/heads/main/Kiwisense/Library.lua"))()
 
 --
 -- Example
@@ -284,7 +285,7 @@ do
                 Flag = "Visuals/ESP/Boxes/Gradient 1",
                 Default = Options["Box Gradient 1"].Color,
                 Alpha = 0,
-                Callback = function(Value)
+                Callback = function(Value, Alpha)
                     Options["Box Gradient 1"] = {Color = Value, Transparency = Alpha}
                     MiscOptions["Box Gradient 1"] = {Color = Value, Transparency = Alpha}
                     ESPPreview:Set("BoxGradient", "Color", ColorSequence.new{ColorSequenceKeypoint.new(0, Value), ColorSequenceKeypoint.new(1, Options["Box Gradient 2"]["Color"])})

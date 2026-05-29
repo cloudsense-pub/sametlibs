@@ -2224,7 +2224,7 @@ local Library do
         local ViewportSize = Camera.ViewportSize
         local TargetScale = 1
         if IsMobile then
-            TargetScale = math.min(0.55, math.min(ViewportSize.X / 1450, ViewportSize.Y / 850))
+            TargetScale = math.min(0.65, math.min(ViewportSize.X / 1450, ViewportSize.Y / 850))
             TargetScale = math.max(0.15, TargetScale)
         end
         UIScale.Instance.Scale = TargetScale

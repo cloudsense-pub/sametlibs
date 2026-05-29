@@ -2231,7 +2231,6 @@ local Library do
     end
 
     UpdateScale()
-    Library:Connect(Camera:GetPropertyChangedSignal("ViewportSize"), UpdateScale)
 
     Library.UnusedHolder = Instances:Create("ScreenGui", {
         Parent = gethui(),
@@ -2355,6 +2354,8 @@ local Library do
             end
         end
     end
+
+    Library:Connect(Camera:GetPropertyChangedSignal("ViewportSize"), UpdateScale)
 
     Library.NextFlag = function(self)
         local FlagNumber = self.UnnamedFlags + 1

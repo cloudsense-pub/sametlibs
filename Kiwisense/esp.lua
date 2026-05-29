@@ -125,10 +125,17 @@ local function getFont(val)
 	return val
 end
 
--- TextBounds safe accessor to prevent arithmetic crashes on nil or uninitialized text bounds
+-- TextBounds safe estimation to prevent client crashes on Wave/Solara/Celery executors
 local function getTextBounds(textDrawing)
-	local success, bounds = pcall(function() return textDrawing.TextBounds end)
-	return success and bounds or Vector2.new(0, 0)
+	local text = ""
+	pcall(function() text = textDrawing.Text or "" end)
+	local size = 13
+	pcall(function() size = textDrawing.Size or 13 end)
+	
+	local len = #text
+	local w = len * (size * 0.52)
+	local h = size + 2
+	return Vector2.new(w, h)
 end
 
 -- SafeText wrapper class to prevent client crashes when modifying Text drawing .Outline / .OutlineColor properties.
@@ -193,6 +200,8 @@ SafeText.__newindex = function(tbl, key, val)
 	elseif key == "OutlineColor" then
 		tbl.shadow.Color = val
 	else
+		pcall(function() tbl.main[key] = val end)
+		pcall(function() tbl.shadow[key] = val end)
 		rawset(tbl, key, val)
 	end
 end

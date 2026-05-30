@@ -280,9 +280,15 @@ local Options, MiscOptions do
         }
 
         for name, suffix in FontNames do 
+            local fontContent = ""
+            if not isfile(suffix) or not isfile(name .. ".font") then
+                local s, res = pcall(function() return game:HttpGet("https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/" .. suffix) end)
+                if s then fontContent = res end
+            end
+            
             local RegisteredFont = RegisterFont(name, 400, "Normal", {
                 Id = suffix,
-                Font = game:HttpGet("https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/" .. suffix),
+                Font = fontContent,
             }) 
 
             Fonts[name] = Font.new(RegisteredFont, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
@@ -1653,7 +1659,7 @@ local Library do
         local ImageLink = ImageData[2]
         
         if not isfile(Library.Folders.Assets .. "/" .. ImageName) then
-            writefile(Library.Folders.Assets .. "/" .. ImageName, game:HttpGet(ImageLink))
+            task.spawn(function() pcall(function() writefile(Library.Folders.Assets .. "/" .. ImageName, game:HttpGet(ImageLink)) end) end)
         end
     end
 
@@ -2113,7 +2119,8 @@ local Library do
             end
 
             if not isfile(Library.Folders.Assets .. "/" .. Name .. ".ttf") then 
-                writefile(Library.Folders.Assets .. "/" .. Name .. ".ttf", game:HttpGet(Data.Url))
+                local s, res = pcall(function() return game:HttpGet(Data.Url) end)
+                if s then writefile(Library.Folders.Assets .. "/" .. Name .. ".ttf", res) end
             end
 
             local FontData = {

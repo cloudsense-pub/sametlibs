@@ -221,18 +221,18 @@ do
 
  local Themes = {
  ["Preset"] = {
- ["Background"] = Color3.fromRGB(10, 10, 12),
- ["Outline"] = Color3.fromRGB(55, 75, 110),
- ["Border"] = Color3.fromRGB(5, 5, 7),
- ["Accent"] = Color3.fromRGB(130, 175, 255),
+ ["Background"] = Color3.fromRGB(18, 18, 18),
+ ["Outline"] = Color3.fromRGB(45, 45, 45),
+ ["Border"] = Color3.fromRGB(0, 0, 0),
+ ["Accent"] = Color3.fromRGB(0, 120, 255),
  ["Risky"] = Color3.fromRGB(255, 50, 50),
- ["Light Border"] = Color3.fromRGB(16, 16, 20),
- ["Border 2"] = Color3.fromRGB(7, 7, 9),
- ["Text"] = Color3.fromRGB(230, 230, 230),
- ["Section"] = Color3.fromRGB(14, 14, 16),
- ["Element"] = Color3.fromRGB(22, 22, 26),
- ["Hovered Element"] = Color3.fromRGB(32, 34, 40),
- ["Inactive Text"] = Color3.fromRGB(105, 105, 105)
+ ["Light Border"] = Color3.fromRGB(28, 28, 28),
+ ["Border 2"] = Color3.fromRGB(12, 12, 12),
+ ["Text"] = Color3.fromRGB(255, 255, 255),
+ ["Section"] = Color3.fromRGB(24, 24, 24),
+ ["Element"] = Color3.fromRGB(32, 32, 32),
+ ["Hovered Element"] = Color3.fromRGB(42, 42, 42),
+ ["Inactive Text"] = Color3.fromRGB(140, 140, 140)
  }
  }
 
@@ -3304,7 +3304,10 @@ do
  Parent = Items["Background"].Instance,
  BackgroundTransparency = 1,
  Size = UDim2.new(1, 0, 1, 0),
- BorderSizePixel = 0
+ BorderSizePixel = 0,
+ Ambient = Color3.fromRGB(200, 200, 200),
+ LightColor = Color3.fromRGB(255, 255, 255),
+ LightDirection = Vector3.new(-1, -1, -1)
  })
  end
 
@@ -3327,29 +3330,30 @@ do
  end
 
  local ViewportCamera = Instance.new("Camera")
-
+ ViewportCamera.Name = "PreviewCamera"
+ ViewportCamera.Parent = Items["Viewport"].Instance
  Items["Viewport"].Instance.CurrentCamera = ViewportCamera
- ViewportCamera.CameraType = Enum.CameraType.Track
- ViewportCamera.Focus = CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)
- ViewportCamera.CFrame = CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)
+ ViewportCamera.CameraType = Enum.CameraType.Scriptable
+ ViewportCamera.CFrame = CFrame.new(0, 1.5, -6.5)
 
+ -- OVERKILL_ESP_PREVIEW_AVATAR
  local PreviewModel = nil
- local RenderObjects = table.create(25)
+ local WorldModel = nil
  local Connections = {}
+ local RebuildToken = 0
 
- local OFFSET = CFrame.new(0, 2.5, -8.5)
+ local OFFSET = Vector3.new(0, 1.15, -6.25)
 
- local ValidClasses = {
- MeshPart = true,
- Part = true,
- Accoutrement = true,
- Pants = true,
- Shirt = true,
- Humanoid = true,
- BoxHandleAdornment = true,
- CylinderHandleAdornment = true,
- Highlight = true
- }
+ local function EnsureWorldModel()
+ if WorldModel and WorldModel.Parent then
+ return WorldModel
+ end
+
+ WorldModel = Instance.new("WorldModel")
+ WorldModel.Name = "PreviewWorld"
+ WorldModel.Parent = Items["Viewport"].Instance
+ return WorldModel
+ end
 
  local function DisconnectAll()
  for _, Connection in ipairs(Connections) do
@@ -3359,131 +3363,211 @@ do
  end
 
  local function ClearViewport()
- table.clear(RenderObjects)
+ if WorldModel then
+ WorldModel:ClearAllChildren()
+ else
  for _, Obj in ipairs(Items["Viewport"].Instance:GetChildren()) do
- if not Obj:IsA("Camera") then
+ if not Obj:IsA("Camera") and not Obj:IsA("WorldModel") then
  Obj:Destroy()
  end
  end
  end
+ PreviewModel = nil
+ Preview.Player = nil
+ end
 
- function Preview:RemoveObject(Object)
- local Clone = RenderObjects[Object]
- if not Clone then
+ local function FitCameraToModel(Model)
+ if not Model then
  return
  end
 
- RenderObjects[Object] = nil
+ local Ok, Cf, Size = pcall(function()
+ return Model:GetBoundingBox()
+ end)
 
- if Clone.Parent and Clone.Parent:IsA("Accoutrement") then
- Clone.Parent:Destroy()
- else
- Clone:Destroy()
- end
- end
-
- function Preview:AddObject(Object)
- if not Object or not ValidClasses[Object.ClassName] then
+ local Focus
+ if Ok and Cf then
+ Focus = Cf.Position
+ local Dist = math.max(Size.X, Size.Y, Size.Z) * 1.35
+ Dist = math.clamp(Dist, 4.5, 10)
+ ViewportCamera.CameraType = Enum.CameraType.Scriptable
+ ViewportCamera.CFrame = CFrame.new(Focus + Vector3.new(0, Size.Y * 0.08, Dist), Focus)
  return
  end
 
- local IsArchivable = Object.Archivable
- Object.Archivable = true
- local Clone = Object:Clone()
- Object.Archivable = IsArchivable
+ local Root = Model:FindFirstChild("HumanoidRootPart")
+ or Model:FindFirstChild("Torso")
+ or Model.PrimaryPart
+ or Model:FindFirstChildWhichIsA("BasePart", true)
 
- if Object:IsA("BasePart") then
- RenderObjects[Object] = Clone
- elseif Object:IsA("Accoutrement") then
- if Object:FindFirstChild("Handle") and Clone:FindFirstChild("Handle") then
- RenderObjects[Object.Handle] = Clone.Handle
- end
- elseif Object:IsA("Humanoid") then
- Clone:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Running, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
- Clone:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
- Clone.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+ if not Root then
+ return
  end
 
- return Clone
+ Focus = Root.Position
+ ViewportCamera.CameraType = Enum.CameraType.Scriptable
+ ViewportCamera.CFrame = CFrame.new(Focus + OFFSET, Focus)
+ end
+
+ local function PreparePreviewModel(Model)
+ if not Model then
+ return nil
+ end
+
+ for _, Desc in ipairs(Model:GetDescendants()) do
+ if Desc:IsA("BasePart") then
+ Desc.Anchored = true
+ Desc.CanCollide = false
+ Desc.CanQuery = false
+ Desc.CanTouch = false
+ Desc.CastShadow = false
+ elseif Desc:IsA("Script") or Desc:IsA("LocalScript") or Desc:IsA("ModuleScript") then
+ Desc:Destroy()
+ elseif Desc:IsA("Humanoid") then
+ Desc.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+ Desc.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+ pcall(function()
+ Desc:ChangeState(Enum.HumanoidStateType.Physics)
+ end)
+ for _, State in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
+ pcall(function()
+ Desc:SetStateEnabled(State, false)
+ end)
+ end
+ end
+ end
+
+ local Animate = Model:FindFirstChild("Animate")
+ if Animate then
+ Animate:Destroy()
+ end
+
+ return Model
  end
 
  function Preview:BuildFromModel(Model)
  ClearViewport()
  DisconnectAll()
 
- PreviewModel = Model
- Preview.Player = Model
-
  if not Model then
  return
  end
 
- local Viewmodel = Instance.new("Model")
- Viewmodel.Name = "Viewmodel"
- Viewmodel.Parent = Items["Viewport"].Instance
-
- for _, Object in ipairs(Model:GetDescendants()) do
- local Clone = self:AddObject(Object)
- if Clone then
- Clone.Parent = Viewmodel
- end
- end
-
- table.insert(Connections, Model.DescendantAdded:Connect(function(Object)
- local Clone = self:AddObject(Object)
- if Clone then
- Clone.Parent = Viewmodel
- end
- end))
-
- table.insert(Connections, Model.DescendantRemoving:Connect(function(Object)
- self:RemoveObject(Object)
- end))
- end
-
- Library:Connect(RunService.Heartbeat, function()
- if not PreviewModel or not Items["ESPPreview"].Instance.Visible then
- return
- end
-
- local Root = PreviewModel:FindFirstChild("HumanoidRootPart")
- if not Root then
- return
- end
-
- ViewportCamera.CFrame = CFrame.new(Root.CFrame:ToWorldSpace(OFFSET).Position, Root.Position)
-
- for Original, Clone in pairs(RenderObjects) do
- if Original and Original.Parent then
- Clone.CFrame = Original.CFrame
- else
- Preview:RemoveObject(Original)
- end
- end
+ local IsArchivable = Model.Archivable
+ Model.Archivable = true
+ local Ok, Clone = pcall(function()
+ return Model:Clone()
  end)
+ Model.Archivable = IsArchivable
+
+ if not Ok or not Clone then
+ return
+ end
+
+ PreparePreviewModel(Clone)
+ Clone.Name = "PreviewAvatar"
+ Clone.Parent = EnsureWorldModel()
+ PreviewModel = Clone
+ Preview.Player = Clone
+ FitCameraToModel(Clone)
+ end
+
+ function Preview:BuildFromLocalPlayer()
+ RebuildToken += 1
+ local Token = RebuildToken
+
+ ClearViewport()
+ DisconnectAll()
+
+ local function Finish(Model)
+ if Token ~= RebuildToken then
+ if Model then
+ Model:Destroy()
+ end
+ return
+ end
+
+ if not Model then
+ local Character = LocalPlayer.Character
+ if Character and Character:FindFirstChildOfClass("Humanoid") then
+ Preview:BuildFromModel(Character)
+ end
+ return
+ end
+
+ PreparePreviewModel(Model)
+ Model.Name = "PreviewAvatar"
+ Model.Parent = EnsureWorldModel()
+ PreviewModel = Model
+ Preview.Player = Model
+ FitCameraToModel(Model)
+ end
 
  task.spawn(function()
- local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
- Preview:BuildFromModel(Character)
+ local Model = nil
+
+ local OkDesc, Description = pcall(function()
+ return Players:GetHumanoidDescriptionFromUserIdAsync(LocalPlayer.UserId)
  end)
 
- Library:Connect(LocalPlayer.CharacterAdded, function(NewCharacter)
- task.wait(1)
- Preview:BuildFromModel(NewCharacter)
+ if not (OkDesc and Description) then
+ OkDesc, Description = pcall(function()
+ return Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
+ end)
+ end
+
+ if OkDesc and Description then
+ local Rig = Enum.HumanoidRigType.R15
+ local Character = LocalPlayer.Character
+ local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+ if Humanoid then
+ Rig = Humanoid.RigType
+ end
+
+ local OkModel, Built = pcall(function()
+ return Players:CreateHumanoidModelFromDescription(Description, Rig)
+ end)
+
+ if OkModel and Built then
+ Model = Built
+ end
+ end
+
+ if not Model then
+ local OkUser, Built = pcall(function()
+ return Players:CreateHumanoidModelFromUserIdAsync(LocalPlayer.UserId)
+ end)
+ if not (OkUser and Built) then
+ OkUser, Built = pcall(function()
+ return Players:CreateHumanoidModelFromUserId(LocalPlayer.UserId)
+ end)
+ end
+ if OkUser and Built then
+ Model = Built
+ end
+ end
+
+ Finish(Model)
+ end)
+ end
+
+ task.spawn(function()
+ if LocalPlayer.Character then
+ LocalPlayer.Character:WaitForChild("Humanoid", 5)
+ end
+ Preview:BuildFromLocalPlayer()
+ end)
+
+ Library:Connect(LocalPlayer.CharacterAdded, function()
+ task.wait(0.75)
+ Preview:BuildFromLocalPlayer()
+ end)
+
+ pcall(function()
+ Library:Connect(LocalPlayer.CharacterAppearanceLoaded, function()
+ task.wait(0.2)
+ Preview:BuildFromLocalPlayer()
+ end)
  end)
 
  Library:RegisterLayout("ESPPreview", {
@@ -7384,7 +7468,7 @@ do
  Parent = Library.Holder.Instance,
  AnchorPoint = Vector2.new(0.5, 0.5),
  Position = UDim2.new(0.5, 0, 0.5, 0),
- Size = UDim2.new(0, 552, 0, 451),
+ Size = UDim2.new(0, 580, 0, 480),
  BorderSizePixel = 0,
  BackgroundColor3 = Library.Theme["Background"]
  }):AddToTheme({ BackgroundColor3 = 'Background' })
@@ -7398,8 +7482,8 @@ do
  Parent = Items["MainFrame"].Instance,
  ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
  LineJoinMode = Enum.LineJoinMode.Miter,
- Color = Library.Theme["Accent"]
- }):AddToTheme({ Color = 'Accent' })
+ Color = Library.Theme["Outline"]
+ }):AddToTheme({ Color = 'Outline' })
 
  Library:Create("UIStroke", {
  Name = "\0",
@@ -7541,6 +7625,7 @@ do
  AutomaticSize = Enum.AutomaticSize.XY,
  TextSize = 9,
  ZIndex = 5,
+ Visible = false,
  BackgroundColor3 = Color3.fromRGB(255, 255, 255)
  }):AddToTheme({ TextColor3 = "Text" })
 
@@ -7658,8 +7743,8 @@ do
  Position = UDim2.new(0, 0, 0, 2),
  Size = UDim2.new(1, 0, 0, 22),
  BorderSizePixel = 0,
- BackgroundColor3 = Library.Theme["Background"]
- }):AddToTheme({ BackgroundColor3 = 'Background' })
+ BackgroundColor3 = Library.Theme["Light Border"]
+ }):AddToTheme({ BackgroundColor3 = 'Light Border' })
 
  Items["WindowTitle"] = Library:Create("TextLabel", {
  Name = "\0",
@@ -7670,8 +7755,8 @@ do
  TextColor3 = Library.Theme["Text"],
  BackgroundTransparency = 1,
  BorderSizePixel = 0,
- AnchorPoint = Vector2.new(0.5, 0.5),
- Position = UDim2.new(0.5, 0, 0.5, 0),
+ AnchorPoint = Vector2.new(0, 0.5),
+ Position = UDim2.new(0, 10, 0.5, 0),
  AutomaticSize = Enum.AutomaticSize.XY,
  ZIndex = 2
  }):AddToTheme({ TextColor3 = 'Text' })
@@ -8345,8 +8430,8 @@ do
  Size = UDim2.new(1, 0, 0, 20),
  BorderSizePixel = 0,
  AutomaticSize = Enum.AutomaticSize.Y,
- BackgroundColor3 = Library.Theme["Accent"]
- }):AddToTheme({ BackgroundColor3 = 'Accent' })
+ BackgroundColor3 = Library.Theme["Outline"]
+ }):AddToTheme({ BackgroundColor3 = 'Outline' })
 
  Items["Section"] = Library:Create("Frame", {
  Name = "\0",
@@ -8386,7 +8471,8 @@ do
  Library:Create("UIPadding", {
  Name = "\0",
  Parent = Items["Content"].Instance,
- PaddingBottom = UDim.new(0, 10)
+ PaddingBottom = UDim.new(0, 10),
+ PaddingTop = UDim.new(0, 4)
  })
 
  Items["Text"] = Library:Create("TextLabel", {
@@ -8397,12 +8483,12 @@ do
  TextColor3 = Library.Theme["Accent"],
  Text = Section.Name,
  Size = UDim2.new(0, 0, 0, 4),
- Position = UDim2.new(0, 6, 0, 0),
+ Position = UDim2.new(0, 8, 0, -1),
  BorderSizePixel = 0,
  AutomaticSize = Enum.AutomaticSize.X,
  ZIndex = 4,
- BackgroundColor3 = Library.Theme["Section"]
- }):AddToTheme({ BackgroundColor3 = 'Section', TextColor3 = 'Accent' })
+ BackgroundColor3 = Library.Theme["Background"]
+ }):AddToTheme({ BackgroundColor3 = 'Background', TextColor3 = 'Accent' })
 
  Library:Create("UIPadding", {
  Name = "\0",
